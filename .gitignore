@@ -1,0 +1,16 @@
+.env
+.env.*
+*.pem
+*.key
+.neptune_token
+__pycache__/
+*.pyc
+.venv/
+datasets/
+models/
+runs/
+*.pt
+*.pth
+*.npy
+*.npz
+*.pkl

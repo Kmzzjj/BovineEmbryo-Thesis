@@ -1,0 +1,11 @@
+data:
+  csv_path: /path/to/data/train_windows_120m.csv
+  img_root: /path/to/data/images
+train:
+  batch_size: 16
+  epochs: 20
+  img_size: 224
+  seq_len: 13
+model:
+  backbone: resnet18
+  temporal: avg

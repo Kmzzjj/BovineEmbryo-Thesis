@@ -1,0 +1,164 @@
+[
+  {
+    "path": "BovineEmbryoDetection/src/detection/yolov8_detector.py",
+    "source_sha256": "b819c922ff8ecd56471cf3ceadbd7a53e996ddc9a39eceaf3da61eb1dc3c25b9",
+    "public_sha256": "67bd69e5dc1d61e6b3b3a327e80c17a2882596e02b54fe8a869c3b9a915b0e69",
+    "path_or_account_placeholders_changed": false
+  },
+  {
+    "path": "BovineEmbryoDetection/src/tracking/track_BoT-SORT.py",
+    "source_sha256": "f3a5f924bdab142241fa3b13117b5213599443e6f36ed3e947b4609f12f60ccf",
+    "public_sha256": "d71cac3867c8891751e37adb3e6fe3c2f903869b1b8e1b60051d22264b1ec483",
+    "path_or_account_placeholders_changed": false
+  },
+  {
+    "path": "BovineEmbryoDetection/src/train/train_yolov8.py",
+    "source_sha256": "b5207221f01b5f8ba9d7a9b423e0880bc8a3864eaae70bc0542fd38cf15bc04b",
+    "public_sha256": "c044e834a2bc0c046325207e3cfdfa0dfbfa6f0efe6a05d9f5b29f8bcd97e97c",
+    "path_or_account_placeholders_changed": false
+  },
+  {
+    "path": "BovineEmbryoDetection/src/utils/paths.py",
+    "source_sha256": "4706504450ae06fbab07ed71c5792655e829e22a10ed68547997eea646b7b590",
+    "public_sha256": "6800de06f265f50c5053b31cf7c0d50415066d8c174752ccefa0a0c02081767b",
+    "path_or_account_placeholders_changed": false
+  },
+  {
+    "path": "direction_t3_20260907/analyse_direction.py",
+    "source_sha256": "da50715f708375efa3c6a4e11aded3adeebd357113290e89414a8fbacf3ae74f",
+    "public_sha256": "b199a3e3c4b4ac1e794a29ae2025d7b31d47a69e7f4277cd64d57ce47f33c01d",
+    "path_or_account_placeholders_changed": true
+  },
+  {
+    "path": "direction_t3_20260907/direction_support.py",
+    "source_sha256": "8a909c589ef8ff45e3c9de9c53827dde6e5968b7eb3a5092baa77f96bbfd95c6",
+    "public_sha256": "8a909c589ef8ff45e3c9de9c53827dde6e5968b7eb3a5092baa77f96bbfd95c6",
+    "path_or_account_placeholders_changed": false
+  },
+  {
+    "path": "direction_t3_20260907/finish_pipeline.py",
+    "source_sha256": "c8cdba94c2986e0ab7022c998cbc279cbde8af74995c46c90a03f88e6648d317",
+    "public_sha256": "07c7f6e10452e4864a8b76a281f22264bab30fff4377c84cdbe5e0cfcc3a250b",
+    "path_or_account_placeholders_changed": true
+  },
+  {
+    "path": "direction_t3_20260907/launch_verified.py",
+    "source_sha256": "f980f4d52993ff7292422cab00bf8425c6848c1d9de2e060013edb4ef8efec47",
+    "public_sha256": "c23ba30e63f92bd2a39a413d35d747092e5f078bd4a1ca9010ba82eba63f6ebf",
+    "path_or_account_placeholders_changed": true
+  },
+  {
+    "path": "direction_t3_20260907/prepare_and_verify.py",
+    "source_sha256": "cfc152e602f944a8cfbfbd53d4ecbd61649faf265479941d111ee6f257266938",
+    "public_sha256": "73eef32bd5ec2a974ba5340d64c19cde2d94e856fe6f0190d3aa3b907d86a7d1",
+    "path_or_account_placeholders_changed": true
+  },
+  {
+    "path": "direction_t3_20260907/run_direction_t3.py",
+    "source_sha256": "cebc9a80ffc65a79c1d4e6f517e30a5ca5dae1219235b29289b839866925b181",
+    "public_sha256": "719afdd32c1e88213d0032c5bf76981fd69f00c0cdfeebbdaec23097bbf27747",
+    "path_or_account_placeholders_changed": true
+  },
+  {
+    "path": "direction_t3_20260907/test_direction.py",
+    "source_sha256": "df4b42081efced52fdbb77480561170e2ec40baa98b0564213fd25fdb850eaa7",
+    "public_sha256": "df4b42081efced52fdbb77480561170e2ec40baa98b0564213fd25fdb850eaa7",
+    "path_or_account_placeholders_changed": false
+  },
+  {
+    "path": "direction_t3_20260907/verify_tensor_parity.py",
+    "source_sha256": "e75b8adf111164a97354d6b8cd4e392fe3ffd1636fde24ab658b53748610d6b0",
+    "public_sha256": "316083d02f369db86b1b61423bd02ad062248bced67fd5f738b9360ba19bf42d",
+    "path_or_account_placeholders_changed": true
+  },
+  {
+    "path": "notebook_script/analyse_confirmatory_model_compare_20260810.py",
+    "source_sha256": "a4834dc41b5b588494e0488e7aef289db889e552c3ada1d6110a27c83febd541",
+    "public_sha256": "c02abc76fcb24662dd98b695eebd4698ed839a6fb956030d5dabbeb1275e37e8",
+    "path_or_account_placeholders_changed": true
+  },
+  {
+    "path": "notebook_script/analyse_gui_class_level_paired.py",
+    "source_sha256": "dd56a32ab95c0b1b7799ac299b3583f2e563f593fcf7e60b42139fd2c49ea68e",
+    "public_sha256": "dd56a32ab95c0b1b7799ac299b3583f2e563f593fcf7e60b42139fd2c49ea68e",
+    "path_or_account_placeholders_changed": false
+  },
+  {
+    "path": "notebook_script/analyse_window_gui_only.py",
+    "source_sha256": "0a202db66e97e8ac727e46ae6d5d5559722f17ac22de7a107af2c77c1875e23d",
+    "public_sha256": "0a202db66e97e8ac727e46ae6d5d5559722f17ac22de7a107af2c77c1875e23d",
+    "path_or_account_placeholders_changed": false
+  },
+  {
+    "path": "notebook_script/analyze_gui_confirmatory.py",
+    "source_sha256": "c3076d868cef6a9d844447c79d7aa9103cef36193ab2de5e2e9c56f2831c2bb3",
+    "public_sha256": "c3076d868cef6a9d844447c79d7aa9103cef36193ab2de5e2e9c56f2831c2bb3",
+    "path_or_account_placeholders_changed": false
+  },
+  {
+    "path": "notebook_script/python embryo_label_grid_gui.py",
+    "source_sha256": "034845c252b8ac71d0e9e1bdc6465922f6500223d784728cab601f84d5d9f132",
+    "public_sha256": "034845c252b8ac71d0e9e1bdc6465922f6500223d784728cab601f84d5d9f132",
+    "path_or_account_placeholders_changed": false
+  },
+  {
+    "path": "notebook_script/repair_pipeline53_guarded_orphanfix_release.py",
+    "source_sha256": "0eb86c8887251fc107483fd9187c865220a8b9fbad9a264abfc805512897c386",
+    "public_sha256": "e474415007574003b36997b902ee527e342e9ae318890a277e62f994dc2129e2",
+    "path_or_account_placeholders_changed": true
+  },
+  {
+    "path": "notebook_script/run_confirmatory_model_compare_20260810.py",
+    "source_sha256": "024cd9c353824b75d5461105a7c70cab70220054c32bf49fa0f806aab3b7c83b",
+    "public_sha256": "828f1e6ac1065e18f91633ea6b8d1beb5f1dd426160ed091efac9fe954065f65",
+    "path_or_account_placeholders_changed": true
+  },
+  {
+    "path": "notebook_script/run_label_restructure_compare.py",
+    "source_sha256": "caac3a5c47a0873aeaab30a98f245b8168710dd46c23985c0b98b4838e8d946f",
+    "public_sha256": "d25b34d0d498c6c1a280a1f7a32102d1e125b88ccfb9eb204555a2966fa8454f",
+    "path_or_account_placeholders_changed": true
+  },
+  {
+    "path": "notebook_script/run_paired_window_t3_t9_repro_20260829.py",
+    "source_sha256": "8fb10f593be67633b5de9341cea1230dc357ceba3c6899aa6bbf66f297113d02",
+    "public_sha256": "80d5bf1953338efed1913a50ff28e933697b897b9cb13ab35be8c64b64927da0",
+    "path_or_account_placeholders_changed": true
+  },
+  {
+    "path": "notebook_script/train_reid_native_stable_v3_full.py",
+    "source_sha256": "6647dd1fd0213f413ea178050ad7818d79caedc2f8191a1615493b676eab0bef",
+    "public_sha256": "6647dd1fd0213f413ea178050ad7818d79caedc2f8191a1615493b676eab0bef",
+    "path_or_account_placeholders_changed": false
+  },
+  {
+    "path": "repair_supplement_20260907/build_failure_diagnostics.py",
+    "source_sha256": "1fd86b372e3efca2eac32ae5597509a59ae06b76b44cacc66429015d2fa42ca8",
+    "public_sha256": "c3025d59bdafe8a7bfda2469f7b95635904d49ff9dec3f8d620cae5f152f5991",
+    "path_or_account_placeholders_changed": true
+  },
+  {
+    "path": "repair_supplement_20260907/diagnostic_frozen_kernel_20260908.py",
+    "source_sha256": "2686b7c509e6ab74747092a97c27cd084b7ac5f08924c6869b75df5e6fe306cb",
+    "public_sha256": "2686b7c509e6ab74747092a97c27cd084b7ac5f08924c6869b75df5e6fe306cb",
+    "path_or_account_placeholders_changed": false
+  },
+  {
+    "path": "repair_supplement_20260907/run_cached_v53_sensitivity_v2.py",
+    "source_sha256": "2686b7c509e6ab74747092a97c27cd084b7ac5f08924c6869b75df5e6fe306cb",
+    "public_sha256": "2686b7c509e6ab74747092a97c27cd084b7ac5f08924c6869b75df5e6fe306cb",
+    "path_or_account_placeholders_changed": false
+  },
+  {
+    "path": "repair_supplement_20260907/trace_failure_causes.py",
+    "source_sha256": "006506c1197f26a34fe00699336d4176c4d9e10ddc44d45f64cf8b154f5b9f5e",
+    "public_sha256": "fbd7487e5372551f629246e11561cc2880c5f8d937604fdbe4b5f8efdad5bfa4",
+    "path_or_account_placeholders_changed": true
+  },
+  {
+    "path": "repair_supplement_20260907/verify_membership_changes.py",
+    "source_sha256": "7bf0d9dd719e6b5dfab33b1dae8c077f90671e3c493838939e9ec62d40c63ae4",
+    "public_sha256": "7bf0d9dd719e6b5dfab33b1dae8c077f90671e3c493838939e9ec62d40c63ae4",
+    "path_or_account_placeholders_changed": false
+  }
+]
