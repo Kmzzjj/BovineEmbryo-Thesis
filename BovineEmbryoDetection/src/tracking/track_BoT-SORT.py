@@ -1,266 +1,225 @@
+"""Track detections in time-lapse images grouped by well and focal plane."""
+
+import argparse
+import csv
+import gc
 import os
 import re
-import gc
-import csv
-import glob
 from pathlib import Path
-from typing import List, Optional, Tuple, Dict
+from tempfile import TemporaryDirectory
 
 import cv2
-import torch
 import numpy as np
-from ultralytics import YOLO
 
-# env
-FRAME_ROOT = r"F:\Bovine"
-WEIGHTS    = r"E:\Pythonprojectall\BovineEmbryoDetection\runs\yolov8n_bovine_det_70\weights\best.pt"
-OUT_ROOT   = r"F:\EmbryoTracks_BoT"
-
-
-FOCAL_PLANES: Optional[set] = {"FP3"}
 
 EMBRYO_CLASS = 0
-CONF_TH      = 0.40
-IOU_TH       = 0.50
-IMGSZ        = 640
-MAX_DET      = 4
+CONF_TH = 0.40
+IOU_TH = 0.50
+IMGSZ = 640
+MAX_DET = 4
 MIN_BOX_AREA = 150
+VID_STRIDE = 1
+SAVE_FPS = 12.0
+WORKERS = 1
+CLEAN_EVERY = 50
 
-DEVICE       = 0 if torch.cuda.is_available() else "cpu"
-VID_STRIDE   = 1
-SAVE_VIDEO   = True
-SAVE_FPS     = 12.0
-WORKERS      = 1
-CLEAN_EVERY  = 50
+FRAME_NAME = re.compile(
+    r"^(?P<run>.+)_(?P<pos>P\d+)_(?P<fp>FP\d+)_(?P<time>\d+)"
+    r"(?:_(?P<inst>I\d+))?\.jpe?g$",
+    re.IGNORECASE,
+)
+TRACK_COLUMNS = (
+    "frame", "time_min", "track_id", "cls", "conf",
+    "x1", "y1", "x2", "y2", "W", "H", "filename",
+)
 
-OVERWRITE    = False
 
-
-PAT_A = re.compile(r'^(?P<run>.+)_(?P<pos>P\d+)_(?P<fp>FP\d+)_(?P<time>\d+)\.jpe?g$', re.IGNORECASE)
-PAT_B = re.compile(r'^(?P<run>.+)_(?P<pos>P\d+)_(?P<fp>FP\d+)_(?P<time>\d+)_(?P<inst>I\d+)\.jpe?g$', re.IGNORECASE)
-
-def parse_name(p: Path):
-    n = p.name
-    m = PAT_B.match(n) or PAT_A.match(n)
-    if not m:
+def parse_name(frame: Path):
+    match = FRAME_NAME.match(frame.name)
+    if match is None:
         return None
-    d = m.groupdict()
-    try:
-        d["time"] = int(d["time"])
-    except Exception:
-        return None
-    return d  # {run,pos,fp,time,(inst)}
+    metadata = match.groupdict()
+    metadata["time"] = int(metadata["time"])
+    return metadata
 
-def list_runs(root: Path) -> List[Path]:
-    if not root.exists():
+
+def group_frames(run_dir: Path, focal_plane: str) -> dict[str, list[Path]]:
+    groups = {}
+    for frame in run_dir.iterdir():
+        metadata = parse_name(frame)
+        if metadata is None or metadata["fp"].upper() != focal_plane or not frame.is_file():
+            continue
+        key = f"{metadata['pos'].upper()}_{focal_plane}"
+        groups.setdefault(key, []).append((metadata["time"], frame.name, frame))
+
+    return {
+        key: [frame for _, _, frame in sorted(groups[key])]
+        for key in sorted(groups)
+    }
+
+
+def init_vwriter(video_path: Path, width: int, height: int):
+    for codec in ("mp4v", "XVID"):
+        fourcc = cv2.VideoWriter_fourcc(*codec)
+        writer = cv2.VideoWriter(str(video_path), fourcc, SAVE_FPS, (width, height))
+        if writer.isOpened():
+            return writer
+        writer.release()
+    raise OSError(f"Could not open video writer: {video_path}")
+
+
+def draw_box_id(image, x1, y1, x2, y2, track_id, confidence):
+    x1, y1, x2, y2 = map(int, (x1, y1, x2, y2))
+    color = (0, 220, 255)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    label = f"ID {track_id}  {confidence:.2f}"
+    (text_width, text_height), _ = cv2.getTextSize(label, font, 0.6, 2)
+    cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
+    cv2.rectangle(image, (x1, y1 - text_height - 6), (x1 + text_width + 6, y1), color, -1)
+    cv2.putText(image, label, (x1 + 3, y1 - 4), font, 0.6, (0, 0, 0), 2, cv2.LINE_AA)
+
+
+def track_rows(boxes, local_ids):
+    if boxes is None or not len(boxes):
         return []
-    return sorted([d for d in root.iterdir() if d.is_dir()])
 
-def list_pos_fp_keys(run_dir: Path) -> List[str]:
-    files = [Path(p) for p in glob.glob(str(run_dir / "*.jpg"))]
-    buckets = set()
-    for f in files:
-        meta = parse_name(f)
-        if not meta:
+    classes = boxes.cls.cpu().numpy().astype(int)
+    confidences = boxes.conf.cpu().numpy()
+    coords = boxes.xyxy.cpu().numpy()
+    ids = getattr(boxes, "id", None)
+    ids = ids.int().cpu().numpy() if ids is not None else np.full(len(classes), -1, dtype=int)
+
+    picked = []
+    for global_id, cls, confidence, (x1, y1, x2, y2) in zip(ids, classes, confidences, coords):
+        if cls != EMBRYO_CLASS or (x2 - x1) * (y2 - y1) < MIN_BOX_AREA:
             continue
-        fp = meta["fp"].upper()
-        if FOCAL_PLANES and fp not in FOCAL_PLANES:
-            continue
-        buckets.add(f"{meta['pos']}_{fp}")
-    return sorted(buckets)
+        local_id = local_ids.setdefault(global_id, len(local_ids))
+        picked.append((local_id, int(cls), float(confidence), float(x1), float(y1), float(x2), float(y2)))
 
-def gather_frames(run_dir: Path, key: str) -> List[Path]:
-    pos, fp = key.split("_")
-    files: List[Tuple[int, str, Path]] = []
-    for p in glob.glob(str(run_dir / f"*_{pos}_{fp}_*.jpg")):
-        pp = Path(p)
-        meta = parse_name(pp)
-        if not meta:
-            continue
-        files.append((meta["time"], pp.name, pp))
-    files.sort(key=lambda x: (x[0], x[1]))  
-    return [pp for _, __, pp in files]
+    picked.sort(key=lambda row: row[2], reverse=True)
+    return picked[:MAX_DET]
 
-def ensure_parent(p: Path):
-    p.parent.mkdir(parents=True, exist_ok=True)
 
-def init_vwriter(out_path: Path, w: int, h: int, fps: float):
-    ensure_parent(out_path)
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    vw = cv2.VideoWriter(str(out_path), fourcc, fps, (w, h))
-    if not vw.isOpened():
-        fourcc = cv2.VideoWriter_fourcc(*"XVID")
-        vw = cv2.VideoWriter(str(out_path), fourcc, fps, (w, h))
-    return vw
+def track_sequence(model, frames, sequence_dir: Path, device, *, save_video: bool, overwrite: bool):
+    import torch
 
-def draw_box_id(img, x1, y1, x2, y2, tid, conf=None):
-    x1, y1, x2, y2 = map(int, [x1, y1, x2, y2])
-    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 220, 255), 2)
-    label = f"ID {tid}" + (f"  {conf:.2f}" if conf is not None else "")
-    (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-    cv2.rectangle(img, (x1, y1 - th - 6), (x1 + tw + 6, y1), (0, 220, 255), -1)
-    cv2.putText(img, label, (x1 + 3, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2, cv2.LINE_AA)
-
-def track_sequence(model: YOLO, frames: List[Path], out_dir: Path, key: str):
-    if not frames:
-        return
-    print(f"  ▶ 序列 {key}: {len(frames)} 帧")
-
-    csv_path = out_dir / key / "tracks.csv"
-    vid_path = out_dir / key / "tracked.mp4"
-    if csv_path.exists() and not OVERWRITE:
-        print(f"    [SKIP] exist {csv_path}，skip（OVERWRITE=False）")
+    csv_path = sequence_dir / "tracks.csv"
+    if csv_path.exists() and not overwrite:
+        print(f"  Skipping {sequence_dir.name}: tracks.csv already exists")
         return
 
     first = cv2.imread(str(frames[0]), cv2.IMREAD_COLOR)
     if first is None:
-        print(" [SKIP] ")
+        print(f"  Skipping {sequence_dir.name}: could not read {frames[0]}")
         return
-    H, W = first.shape[:2]
-    ensure_parent(csv_path)
+    height, width = first.shape[:2]
+    sequence_dir.mkdir(parents=True, exist_ok=True)
+    sequence = frames[::VID_STRIDE]
+    print(f"  {sequence_dir.name}: {len(sequence)} frames")
 
-    vw = init_vwriter(vid_path, W, H, SAVE_FPS) if SAVE_VIDEO else None
+    with TemporaryDirectory(prefix=".tracking-", dir=sequence_dir) as pending:
+        staged_csv = Path(pending) / csv_path.name
+        staged_video = Path(pending) / "tracked.mp4"
+        video = init_vwriter(staged_video, width, height) if save_video else None
+        local_ids = {}
+        frame_number = 0
+        try:
+            results = model.track(
+                source=[str(frame) for frame in sequence],
+                tracker="botsort.yaml",
+                persist=True,
+                stream=True,
+                device=device,
+                imgsz=IMGSZ,
+                conf=CONF_TH,
+                iou=IOU_TH,
+                max_det=MAX_DET,
+                verbose=False,
+                workers=WORKERS,
+                half=True,
+                agnostic_nms=False,
+            )
+            with staged_csv.open("w", newline="", encoding="utf-8") as stream:
+                writer = csv.writer(stream)
+                writer.writerow(TRACK_COLUMNS)
+                for frame_number, (frame, result) in enumerate(zip(sequence, results), 1):
+                    time_min = parse_name(frame)["time"]
+                    rows = track_rows(result.boxes, local_ids)
+                    writer.writerows(
+                        (frame_number, time_min, *row, width, height, frame.name)
+                        for row in rows
+                    )
+
+                    if video is not None:
+                        image = cv2.imread(str(frame), cv2.IMREAD_COLOR)
+                        if image is not None:
+                            for track_id, _, confidence, x1, y1, x2, y2 in rows:
+                                draw_box_id(image, x1, y1, x2, y2, track_id, confidence)
+                            video.write(image)
+
+                    if frame_number % CLEAN_EVERY == 0:
+                        gc.collect()
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+
+            if frame_number != len(sequence):
+                raise RuntimeError(f"Tracker returned {frame_number} results for {len(sequence)} frames")
+        finally:
+            if video is not None:
+                video.release()
+
+        if video is not None:
+            staged_video.replace(sequence_dir / staged_video.name)
+        # The CSV is also the marker used to skip completed sequences.
+        staged_csv.replace(csv_path)
 
 
-    seq_paths = frames[::VID_STRIDE]
-    str_paths = [str(p) for p in seq_paths]
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--frames", required=True, type=Path, help="Directory containing one folder per run")
+    parser.add_argument("--weights", required=True, type=Path, help="Trained YOLO detector weights")
+    parser.add_argument("--output", required=True, type=Path, help="Directory for track CSVs and videos")
+    parser.add_argument("--focal-plane", default="FP3", type=str.upper)
+    parser.add_argument("--device", help="Ultralytics device, e.g. cpu or 0 (default: auto)")
+    parser.add_argument("--no-video", action="store_true", help="Write track CSVs only")
+    parser.add_argument("--overwrite", action="store_true", help="Replace completed track outputs")
+    args = parser.parse_args()
+    if not args.frames.is_dir():
+        parser.error(f"frame directory does not exist: {args.frames}")
+    if not args.weights.is_file():
+        parser.error(f"weights file does not exist: {args.weights}")
+    if not re.fullmatch(r"FP\d+", args.focal_plane):
+        parser.error("--focal-plane must have the form FP3")
+    return args
 
-    # BoT-SORT
-    gen = model.track(
-        source=str_paths,
-        tracker="botsort.yaml",
-        persist=True,
-        stream=True,
-        device=DEVICE,
-        imgsz=IMGSZ,
-        conf=CONF_TH,
-        iou=IOU_TH,
-        max_det=MAX_DET,
-        verbose=False,
-        workers=WORKERS,
-        half=True,
-        agnostic_nms=False
-    )
-
-    global_to_local: Dict[int, int] = {}
-    next_local_id = 0
-
-    # CSV
-    with open(csv_path, "w", newline="", encoding="utf-8") as f:
-        wcsv = csv.writer(f)
-        wcsv.writerow([
-            "frame", "time_min", "track_id", "cls", "conf",
-            "x1", "y1", "x2", "y2", "W", "H", "filename"
-        ])
-
-    for i, (p, r) in enumerate(zip(seq_paths, gen), 1):
-        meta = parse_name(p)
-        if meta is None:
-            continue
-
-        rows = []
-        if r.boxes is not None and len(r.boxes):
-            ids   = getattr(r.boxes, "id", None)
-            clses = r.boxes.cls.cpu().numpy().astype(int)
-            confs = r.boxes.conf.cpu().numpy()
-            xyxy  = r.boxes.xyxy.cpu().numpy()
-            if ids is not None:
-                ids = ids.int().cpu().numpy()
-            else:
-                ids = np.full((len(clses),), -1, dtype=int)
-
-            picked = []
-            for (gid, c, cf, (x1, y1, x2, y2)) in zip(ids, clses, confs, xyxy):
-                if c != EMBRYO_CLASS:
-                    continue
-                w, h = (x2 - x1), (y2 - y1)
-                if w * h < MIN_BOX_AREA:
-                    continue
-
-                if gid not in global_to_local:
-                    global_to_local[gid] = next_local_id
-                    next_local_id += 1
-                lid = global_to_local[gid]
-
-                picked.append((lid, c, cf, x1, y1, x2, y2))
-
-            #MAX_DET
-            picked.sort(key=lambda t: t[2], reverse=True)
-            picked = picked[:MAX_DET]
-
-            for (lid, c, cf, x1, y1, x2, y2) in picked:
-                rows.append([
-                    i, meta["time"], int(lid), int(c), float(cf),
-                    float(x1), float(y1), float(x2), float(y2),
-                    int(W), int(H), p.name
-                ])
-
-        # input to CSV
-        if rows:
-            with open(csv_path, "a", newline="", encoding="utf-8") as f:
-                wcsv = csv.writer(f)
-                wcsv.writerows(rows)
-
-        # visualize
-        if SAVE_VIDEO:
-            im = cv2.imread(str(p), cv2.IMREAD_COLOR)
-            if im is not None and rows:
-                for _, __, tid, c, cf, x1, y1, x2, y2, *_ in rows:
-                    draw_box_id(im, x1, y1, x2, y2, tid, cf)
-            if im is not None:
-                vw.write(im)
-
-        # clean
-        if (i % CLEAN_EVERY) == 0:
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
-    if SAVE_VIDEO and vw is not None:
-        vw.release()
 
 def main():
+    args = parse_args()
+
     if os.environ.get("CUDA_VISIBLE_DEVICES", "").strip().lower() == "cuda":
         del os.environ["CUDA_VISIBLE_DEVICES"]
 
-    root = Path(FRAME_ROOT)
-    out_root = Path(OUT_ROOT)
-    out_root.mkdir(parents=True, exist_ok=True)
+    import torch
+    from ultralytics import YOLO
 
-    if not root.exists():
-        raise FileNotFoundError(f" root not exist：{root}")
-    if not Path(WEIGHTS).exists():
-        raise FileNotFoundError(f"weights not exist：{WEIGHTS}")
-
-    print(f"[INFO] YOLO: {WEIGHTS} (device={DEVICE})")
-    model = YOLO(WEIGHTS)
-
-    runs = list_runs(root)
+    device = args.device or (0 if torch.cuda.is_available() else "cpu")
+    print(f"YOLO: {args.weights} (device={device})")
+    model = YOLO(str(args.weights))
+    runs = sorted(run for run in args.frames.iterdir() if run.is_dir())
     if not runs:
-        print("Check FRAME_ROOT")
+        print(f"No run folders found in {args.frames}")
         return
 
-    for idx, run_dir in enumerate(runs, 1):
-        print(f"[{idx}/{len(runs)}] {run_dir}")
-        keys = list_pos_fp_keys(run_dir)
-        if not keys:
-            print("  (skip:no compare P*_FP* )")
-            continue
+    for index, run_dir in enumerate(runs, 1):
+        print(f"[{index}/{len(runs)}] {run_dir.name}")
+        for key, frames in group_frames(run_dir, args.focal_plane).items():
+            track_sequence(
+                model, frames, args.output / run_dir.name / key, device,
+                save_video=not args.no_video, overwrite=args.overwrite,
+            )
 
-        run_out = out_root / run_dir.name
-        for key in keys:
-            frames = gather_frames(run_dir, key)
-            if not frames:
-                continue
+    print(f"Output: {args.output.resolve()}")
 
-            seq_csv = run_out / key / "tracks.csv"
-            if seq_csv.exists() and not OVERWRITE:
-                print(f"  (skip {key}， tracks.csv is exist)")
-                continue
-
-            track_sequence(model, frames, run_out, key)
-
-    print("\n[Done] out put root：", out_root.resolve())
 
 if __name__ == "__main__":
     main()
