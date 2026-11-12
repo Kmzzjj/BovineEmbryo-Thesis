@@ -42,6 +42,8 @@ except Exception:
     HAS_TV_READ = False
 
 from PIL import Image, ImageFile
+
+from .paths import big_image_path, parse_from_filename
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
@@ -86,18 +88,6 @@ def _set_worker_env(worker_id: int):
     np.random.seed(s)
 
 
-
-_FNAME_RE = re.compile(r"^(?P<dish>[^_]+)_P(?P<p>\d+)_FP(?P<fp>\d+)_(?P<tmin>-?\d+)\.jpg$", re.IGNORECASE)
-
-def parse_from_filename(fn: str) -> Tuple[Optional[str], Optional[int], Optional[int], Optional[int]]:
-    m = _FNAME_RE.match(Path(str(fn)).name)
-    if not m:
-        return None, None, None, None
-    return str(m.group("dish")), int(m.group("p")), int(m.group("fp")), int(m.group("tmin"))
-
-def big_image_path(big_root: Path, dish: str, p: int, fp: int, tmin: int) -> Path:
-    
-    return Path(big_root) / f"MTL-0034-{dish}" / f"{dish}_P{int(p)}_FP{int(fp)}_{int(tmin)}.jpg"
 
 def clamp_box(x1, y1, x2, y2, W, H) -> Optional[Tuple[int,int,int,int]]:
     x1 = int(round(float(x1))); y1 = int(round(float(y1)))
@@ -648,7 +638,7 @@ def cmd_bench(args):
             num_workers=nw,
             pin_memory=True,
             persistent_workers=(nw>0),
-            prefetch_factor=PF if nw>0 else 2,
+            prefetch_factor=PF if nw>0 else None,
             worker_init_fn=_set_worker_env if nw>0 else None,
         )
 
@@ -809,7 +799,7 @@ def cmd_train(args):
         num_workers=int(args.num_workers),
         pin_memory=True,
         persistent_workers=(int(args.num_workers)>0),
-        prefetch_factor=int(args.prefetch_factor) if int(args.num_workers)>0 else 2,
+        prefetch_factor=int(args.prefetch_factor) if int(args.num_workers)>0 else None,
         worker_init_fn=_set_worker_env if int(args.num_workers)>0 else None,
     )
 
@@ -819,7 +809,7 @@ def cmd_train(args):
         num_workers=va_workers,
         pin_memory=True,
         persistent_workers=(va_workers>0),
-        prefetch_factor=int(args.prefetch_factor) if va_workers>0 else 2,
+        prefetch_factor=int(args.prefetch_factor) if va_workers>0 else None,
         worker_init_fn=_set_worker_env if va_workers>0 else None,
         drop_last=False,
     )

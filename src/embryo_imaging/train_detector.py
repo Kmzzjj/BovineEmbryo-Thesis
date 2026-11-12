@@ -1,18 +1,17 @@
 import argparse
 from pathlib import Path
-from ultralytics import YOLO
+from .paths import DATA_YAML, PRETRAINED, RUNS_DIR
 
 def parse_args():
-    root = Path(__file__).resolve().parents[2]   
-    p = argparse.ArgumentParser("YOLOv8 Trainer (refactored)")
+    p = argparse.ArgumentParser(description="Train a YOLOv8 detector.")
     p.add_argument("--data", type=str,
-                   default=str(root / "datasets" / "bovine_det" / "dataset.yaml"),
+                   default=str(DATA_YAML),
                    help="path to dataset.yaml")
     p.add_argument("--model", type=str,
-                   default=str(root / "models" / "yolov8n.pt"),
+                   default=str(PRETRAINED),
                    help="pretrained or checkpoint .pt")
     p.add_argument("--project", type=str,
-                   default=str(root / "runs"),
+                   default=str(RUNS_DIR),
                    help="root dir to save results")
     p.add_argument("--name", type=str, default="yolov8n_bovine_det3",
                    help="experiment subdir under --project")
@@ -47,9 +46,9 @@ def main():
     data_p = Path(args.data)
     model_p = Path(args.model)
 
-    if not data_p.exists():
+    if not data_p.is_file():
         raise FileNotFoundError(f"dataset.yaml not found: {data_p}")
-    if not model_p.exists():
+    if not model_p.is_file():
         print(f"[warn] model not found: {model_p}  (fallback to 'yolov8n.pt')")
         args.model = "yolov8n.pt"
 
@@ -60,6 +59,8 @@ def main():
     print(f"[cfg] model  = {args.model}")
     print(f"[cfg] runs   = {args.project}/{args.name}")
     print(f"[cfg] epochs = {args.epochs}, imgsz = {args.imgsz}, batch = {args.batch}, device = {args.device}")
+
+    from ultralytics import YOLO
 
     model = YOLO(args.model)
     model.train(
@@ -80,8 +81,7 @@ def main():
         verbose=True,
     )
 
-    out = Path(args.project) / args.name / "weights" / "best.pt"
-    print(f"\n[done] weights saved to: {out.resolve()}")
+    print(f"\n[done] training run: {model.trainer.save_dir}")
 
 
 if __name__ == "__main__":

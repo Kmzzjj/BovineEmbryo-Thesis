@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "embryo-imaging"
+version = "0.1.0"
+description = "Detection, tracking and label review for bovine embryo time-lapse images"
+readme = "README.md"
+requires-python = ">=3.9"
+
+[project.optional-dependencies]
+tracking = ["numpy", "opencv-python", "ultralytics", "lap>=0.5.12"]
+review = ["pandas", "PyQt5"]
+identity = ["numpy", "pandas", "Pillow", "torch", "torchvision", "tqdm"]
+analysis = ["numpy", "pandas", "matplotlib", "scikit-learn", "scipy"]
+test = ["numpy", "opencv-python", "pandas", "PyQt5"]
+
+[project.scripts]
+embryo-train-detector = "embryo_imaging.train_detector:main"
+embryo-track = "embryo_imaging.tracking:main"
+embryo-review = "embryo_imaging.review:main"
+embryo-reid = "embryo_imaging.reid:main"
+embryo-repair = "embryo_imaging.repair:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

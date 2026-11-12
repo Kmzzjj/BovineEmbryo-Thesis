@@ -1,89 +1,77 @@
-# -*- coding: utf-8 -*-
-"""
-Embryo Label Grid GUI
-- 按 seq_id 显示中心裁剪图（6~10 个/页，一页一目十行）
-- 支持按类别 / 来源过滤（GUI / pseudo_600 / All）
-- 直接在界面中修改标签（ComboBox），支持保存到 CSV
-- 每次打开都会读取最新保存的 LABEL_CSV
-"""
+"""Review developmental stage labels with their centre-crop images."""
 
-import sys, os, json, math, time
+import argparse
+import json
+import math
+import shutil
+import sys
+from datetime import datetime
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import pandas as pd
-
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 
-
-LABEL_CSV = Path(
-    "/bulk/Zeyu/exp/train_r50_tfm_gui_plus600/"
-    "exp_r50_tfm_v6_21f_gui_plus600/analysis/labels_gui_plus600_final6.csv"
-)
-
-
-
-# CENTER_ROOT = Path(r"S:\Mac\center_crops_320")
-
-CENTER_ROOT = Path(r"S:\Mac\center_crops_320")  
-
-
 STATE_JSON = Path.home() / ".embryo_label_grid_state.json"
-
-
-DEFAULT_PAGE_SIZE = 9      
-
+DEFAULT_PAGE_SIZE = 9
 
 
 def load_state():
-    if STATE_JSON.exists():
-        try:
-            return json.loads(STATE_JSON.read_text(encoding="utf-8"))
-        except Exception:
-            return {}
-    return {}
-
-
-def save_state(d: dict):
     try:
-        STATE_JSON.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception:
+        return json.loads(STATE_JSON.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def save_state(state: dict):
+    try:
+        STATE_JSON.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError:
         pass
 
 
-def timestamp_backup(path: Path):
-    """生成带时间戳的备份路径"""
-    t = time.strftime("%Y%m%d_%H%M%S")
-    return path.with_name(path.stem + f".bak_{t}" + path.suffix)
-
-
-def find_center_img_path(row):
-    """
-    尝试找到中心裁剪图路径：
-    优先使用 center_img_path 列；如果没有 / 不存在，
-    则用 seq_id 拼接到 CENTER_ROOT/<seq_id>_center_320.jpg
-    """
-    
-    if "center_img_path" in row and isinstance(row["center_img_path"], str):
-        p = Path(row["center_img_path"])
-        if p.exists():
-            return str(p)
-
-    
-    seq_id = str(row["seq_id"])
-    guess = CENTER_ROOT / f"{seq_id}_center_320.jpg"
-    if guess.exists():
-        return str(guess)
-
-    
-    if "filename" in row and isinstance(row["filename"], str):
-        fn = Path(row["filename"])
-        if fn.exists():
-            return str(fn)
-
-    
+def find_center_img_path(row, csv_dir: Path, center_root: Path):
+    candidates = (
+        row.get("center_img_path"),
+        center_root / f"{row['seq_id']}_center_320.jpg",
+        row.get("filename"),
+    )
+    for value in candidates:
+        if not isinstance(value, (str, Path)) or not value:
+            continue
+        path = Path(value).expanduser()
+        for candidate in (csv_dir / path, path):
+            if candidate.is_file():
+                return str(candidate)
     return None
 
+
+def csv_version(path: Path):
+    stat = path.stat()
+    return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
+
+
+def save_label_csv(frame, path: Path, expected_version):
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    backup = path.with_name(f"{path.stem}.bak_{stamp}{path.suffix}")
+
+    with TemporaryDirectory(prefix=".labels-", dir=path.parent) as staging:
+        updated = Path(staging) / path.name
+        frame.to_csv(updated, index=False, encoding="utf-8-sig")
+        lock = QtCore.QLockFile(str(path.with_name(f"{path.name}.lock")))
+        lock.setStaleLockTime(0)
+        if not lock.tryLock(0):
+            raise OSError("Could not lock the label CSV for saving.")
+        try:
+            if csv_version(path) != expected_version:
+                raise ValueError("The CSV has changed on disk. Reload it before saving.")
+            shutil.copymode(path, updated)
+            shutil.copy2(path, backup)
+            updated.replace(path)
+        finally:
+            lock.unlock()
+    return backup
 
 
 class EmbryoItemWidget(QtWidgets.QWidget):
@@ -91,15 +79,15 @@ class EmbryoItemWidget(QtWidgets.QWidget):
 
     label_changed = QtCore.pyqtSignal(int, str)  # row_idx, new_label
 
-    def __init__(self, row_idx, row, class_list, parent=None):
+    def __init__(self, row_idx, row, class_list, image_path, parent=None):
         super().__init__(parent)
         self.row_idx = row_idx
         self.row = row
         self.class_list = class_list
 
-        self.init_ui()
+        self.init_ui(image_path)
 
-    def init_ui(self):
+    def init_ui(self, image_path):
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(3, 3, 3, 3)
         layout.setSpacing(4)
@@ -111,9 +99,8 @@ class EmbryoItemWidget(QtWidgets.QWidget):
         self.img_label.setMaximumSize(220, 220)
         self.img_label.setFrameShape(QtWidgets.QFrame.Box)
 
-        img_path = find_center_img_path(self.row)
-        if img_path is not None and os.path.exists(img_path):
-            pix = QtGui.QPixmap(img_path)
+        if image_path is not None:
+            pix = QtGui.QPixmap(image_path)
             if not pix.isNull():
                 self.img_label.setPixmap(
                     pix.scaled(
@@ -174,8 +161,10 @@ class EmbryoItemWidget(QtWidgets.QWidget):
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self):
+    def __init__(self, label_csv: Path, center_root: Path):
         super().__init__()
+        self.label_csv = label_csv
+        self.center_root = center_root
         self.setWindowTitle("Embryo Label Grid Viewer (GUI + pseudo_600)")
         self.resize(1400, 900)
 
@@ -299,15 +288,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
     
     def load_data(self):
-        if not LABEL_CSV.exists():
+        if not self.label_csv.is_file():
             QtWidgets.QMessageBox.critical(
                 self,
                 "错误",
-                f"找不到标签 CSV：\n{LABEL_CSV}\n\n请先确认路径。",
+                f"找不到标签 CSV：\n{self.label_csv}\n\n请先确认路径。",
             )
             sys.exit(1)
 
-        df = pd.read_csv(LABEL_CSV, encoding="utf-8-sig")
+        self.csv_version = csv_version(self.label_csv)
+        df = pd.read_csv(self.label_csv, encoding="utf-8-sig")
         if "seq_id" not in df.columns or "label" not in df.columns:
             QtWidgets.QMessageBox.critical(
                 self,
@@ -324,7 +314,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.class_list = sorted(df["label"].astype(str).unique().tolist())
 
         
-        cur = self.combo_label_filter.currentText()
         self.combo_label_filter.blockSignals(True)
         self.combo_label_filter.clear()
         self.combo_label_filter.addItem("All")
@@ -356,7 +345,6 @@ class MainWindow(QtWidgets.QMainWindow):
         label_f = self.combo_label_filter.currentText()
         src_f = self.combo_src_filter.currentText()
 
-        mask = [True] * len(self.df)
         if label_f != "All":
             mask = (self.df["label"].astype(str) == label_f)
         else:
@@ -427,14 +415,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
         
         cols = 3
-        rows = math.ceil(self.page_size / cols)
 
         for i, idx in enumerate(cur_indices):
             row = self.df.loc[idx]
             r = i // cols
             c = i % cols
 
-            widget = EmbryoItemWidget(idx, row, self.class_list, self)
+            image_path = find_center_img_path(row, self.label_csv.parent, self.center_root)
+            widget = EmbryoItemWidget(idx, row, self.class_list, image_path, self)
             widget.label_changed.connect(self.on_label_changed)
             self.grid_layout.addWidget(widget, r, c)
 
@@ -495,33 +483,22 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.df is None:
             return
         
-        bak = timestamp_backup(LABEL_CSV)
         try:
-            self.df.to_csv(bak, index=False, encoding="utf-8-sig")
-        except Exception as e:
+            backup = save_label_csv(self.df, self.label_csv, self.csv_version)
+        except (OSError, ValueError) as error:
             QtWidgets.QMessageBox.critical(
                 self,
                 "错误",
-                f"备份失败：\n{bak}\n\n{repr(e)}",
+                f"保存失败：\n{self.label_csv}\n\n{error}",
             )
             return
 
-        
-        try:
-            self.df.to_csv(LABEL_CSV, index=False, encoding="utf-8-sig")
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(
-                self,
-                "错误",
-                f"保存失败：\n{LABEL_CSV}\n\n{repr(e)}",
-            )
-            return
-
+        self.csv_version = csv_version(self.label_csv)
         self.dirty = False
         QtWidgets.QMessageBox.information(
             self,
             "保存成功",
-            f"已保存到：\n{LABEL_CSV}\n\n备份：\n{bak}",
+            f"已保存到：\n{self.label_csv}\n\n备份：\n{backup}",
         )
 
     def closeEvent(self, event):
@@ -540,8 +517,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 def main():
-    app = QtWidgets.QApplication(sys.argv)
-    win = MainWindow()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--labels", required=True, type=Path, help="Label CSV with seq_id and label columns")
+    parser.add_argument("--image-root", type=Path, help="Centre crop directory (defaults to the CSV directory)")
+    args = parser.parse_args()
+    label_csv = args.labels.expanduser().resolve()
+    if not label_csv.is_file():
+        parser.error(f"label CSV does not exist: {label_csv}")
+    center_root = args.image_root.expanduser().resolve() if args.image_root else label_csv.parent
+    if not center_root.is_dir():
+        parser.error(f"image directory does not exist: {center_root}")
+
+    app = QtWidgets.QApplication([sys.argv[0]])
+    win = MainWindow(label_csv, center_root)
     win.show()
     sys.exit(app.exec_())
 
