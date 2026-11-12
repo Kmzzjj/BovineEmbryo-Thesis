@@ -14,3 +14,9 @@ runs/
 *.npy
 *.npz
 *.pkl
+
+build/
+dist/
+*.egg-info/
+.coverage
+.pytest_cache/
