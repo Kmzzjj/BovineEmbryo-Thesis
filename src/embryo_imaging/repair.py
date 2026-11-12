@@ -600,7 +600,7 @@ def infer_embeddings(
         num_workers=int(num_workers),
         pin_memory=device.startswith("cuda"),
         persistent_workers=(int(num_workers) > 0),
-        prefetch_factor=4 if int(num_workers) > 0 else 2,
+        prefetch_factor=4 if int(num_workers) > 0 else None,
         collate_fn=_collate_drop_bad,
         drop_last=False,
         worker_init_fn=_set_worker_env if int(num_workers) > 0 else None,

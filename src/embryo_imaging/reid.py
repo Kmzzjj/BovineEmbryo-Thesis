@@ -638,7 +638,7 @@ def cmd_bench(args):
             num_workers=nw,
             pin_memory=True,
             persistent_workers=(nw>0),
-            prefetch_factor=PF if nw>0 else 2,
+            prefetch_factor=PF if nw>0 else None,
             worker_init_fn=_set_worker_env if nw>0 else None,
         )
 
@@ -799,7 +799,7 @@ def cmd_train(args):
         num_workers=int(args.num_workers),
         pin_memory=True,
         persistent_workers=(int(args.num_workers)>0),
-        prefetch_factor=int(args.prefetch_factor) if int(args.num_workers)>0 else 2,
+        prefetch_factor=int(args.prefetch_factor) if int(args.num_workers)>0 else None,
         worker_init_fn=_set_worker_env if int(args.num_workers)>0 else None,
     )
 
@@ -809,7 +809,7 @@ def cmd_train(args):
         num_workers=va_workers,
         pin_memory=True,
         persistent_workers=(va_workers>0),
-        prefetch_factor=int(args.prefetch_factor) if va_workers>0 else 2,
+        prefetch_factor=int(args.prefetch_factor) if va_workers>0 else None,
         worker_init_fn=_set_worker_env if va_workers>0 else None,
         drop_last=False,
     )
