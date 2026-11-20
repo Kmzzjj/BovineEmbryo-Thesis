@@ -92,7 +92,7 @@ class EmbryoItemWidget(QtWidgets.QWidget):
         layout.setContentsMargins(3, 3, 3, 3)
         layout.setSpacing(4)
 
-        
+
         self.img_label = QtWidgets.QLabel()
         self.img_label.setAlignment(QtCore.Qt.AlignCenter)
         self.img_label.setMinimumSize(160, 160)
@@ -117,7 +117,7 @@ class EmbryoItemWidget(QtWidgets.QWidget):
 
         layout.addWidget(self.img_label)
 
-        
+
         info = QtWidgets.QLabel()
         seq_id = str(self.row.get("seq_id", ""))
         src = str(self.row.get("source", "?"))
@@ -129,7 +129,7 @@ class EmbryoItemWidget(QtWidgets.QWidget):
         info.setFont(font)
         layout.addWidget(info)
 
-        
+
         h = QtWidgets.QHBoxLayout()
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(4)
@@ -146,7 +146,7 @@ class EmbryoItemWidget(QtWidgets.QWidget):
         if cur_label in self.class_list:
             self.combo.setCurrentIndex(self.class_list.index(cur_label))
         else:
-            
+
             self.combo.addItem(cur_label)
             self.class_list.append(cur_label)
             self.combo.setCurrentIndex(len(self.class_list) - 1)
@@ -159,7 +159,6 @@ class EmbryoItemWidget(QtWidgets.QWidget):
         self.label_changed.emit(self.row_idx, text)
 
 
-
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, label_csv: Path, center_root: Path):
         super().__init__()
@@ -168,13 +167,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle("Embryo Label Grid Viewer (GUI + pseudo_600)")
         self.resize(1400, 900)
 
-        self.df = None             
-        self.filtered_indices = [] 
-        self.class_list = []       
+        self.df = None
+        self.filtered_indices = []
+        self.class_list = []
         self.page_size = DEFAULT_PAGE_SIZE
         self.cur_page = 0
         self.total_pages = 0
-        self.dirty = False         
+        self.dirty = False
 
         self.state = load_state()
 
@@ -183,7 +182,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.apply_filters(update_page_from_state=True)
         self.update_grid()
 
-    
+
     def _init_ui(self):
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
@@ -191,18 +190,18 @@ class MainWindow(QtWidgets.QMainWindow):
         vbox.setContentsMargins(5, 5, 5, 5)
         vbox.setSpacing(5)
 
-        
+
         ctrl = QtWidgets.QHBoxLayout()
         ctrl.setSpacing(10)
 
-        
+
         ctrl.addWidget(QtWidgets.QLabel("Label 过滤:"))
         self.combo_label_filter = QtWidgets.QComboBox()
         self.combo_label_filter.addItem("All")
         self.combo_label_filter.currentTextChanged.connect(self._on_filter_changed)
         ctrl.addWidget(self.combo_label_filter)
 
-        
+
         ctrl.addWidget(QtWidgets.QLabel("Source 过滤:"))
         self.combo_src_filter = QtWidgets.QComboBox()
         self.combo_src_filter.addItem("All")
@@ -211,7 +210,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.combo_src_filter.currentTextChanged.connect(self._on_filter_changed)
         ctrl.addWidget(self.combo_src_filter)
 
-        
+
         ctrl.addWidget(QtWidgets.QLabel("每页条数:"))
         self.spin_page_size = QtWidgets.QSpinBox()
         self.spin_page_size.setRange(1, 20)
@@ -221,7 +220,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.spin_page_size.valueChanged.connect(self._on_page_size_changed)
         ctrl.addWidget(self.spin_page_size)
 
-        
+
         self.chk_shuffle = QtWidgets.QCheckBox("随机顺序")
         self.chk_shuffle.setChecked(bool(self.state.get("shuffle", False)))
         self.chk_shuffle.stateChanged.connect(self._on_filter_changed)
@@ -229,19 +228,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
         ctrl.addStretch()
 
-        
+
         self.btn_save = QtWidgets.QPushButton("保存标签 (Ctrl+S)")
         self.btn_save.clicked.connect(self.save_labels)
         ctrl.addWidget(self.btn_save)
 
-        
+
         self.btn_reload = QtWidgets.QPushButton("重新加载 CSV")
         self.btn_reload.clicked.connect(self._on_reload_clicked)
         ctrl.addWidget(self.btn_reload)
 
         vbox.addLayout(ctrl)
 
-        
+
         self.scroll_area = QtWidgets.QScrollArea()
         self.scroll_area.setWidgetResizable(True)
 
@@ -253,7 +252,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.scroll_area.setWidget(self.grid_container)
         vbox.addWidget(self.scroll_area, 1)
 
-        
+
         bottom = QtWidgets.QHBoxLayout()
         bottom.setSpacing(10)
 
@@ -272,7 +271,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         vbox.addLayout(bottom)
 
-        
+
         save_shortcut = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+S"), self)
         save_shortcut.activated.connect(self.save_labels)
 
@@ -286,7 +285,7 @@ class MainWindow(QtWidgets.QMainWindow):
         d_shortcut = QtWidgets.QShortcut(QtGui.QKeySequence("D"), self)
         d_shortcut.activated.connect(self.next_page)
 
-    
+
     def load_data(self):
         if not self.label_csv.is_file():
             QtWidgets.QMessageBox.critical(
@@ -306,14 +305,14 @@ class MainWindow(QtWidgets.QMainWindow):
             )
             sys.exit(1)
 
-        
+
         if "source" not in df.columns:
             df["source"] = "GUI"
 
         self.df = df
         self.class_list = sorted(df["label"].astype(str).unique().tolist())
 
-        
+
         self.combo_label_filter.blockSignals(True)
         self.combo_label_filter.clear()
         self.combo_label_filter.addItem("All")
@@ -321,7 +320,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.combo_label_filter.addItem(c)
         self.combo_label_filter.blockSignals(False)
 
-        
+
         prev_label = self.state.get("label_filter", "All")
         if prev_label in ["All"] + self.class_list:
             idx = self.combo_label_filter.findText(prev_label)
@@ -336,7 +335,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.page_size = int(self.state.get("page_size", DEFAULT_PAGE_SIZE))
         self.spin_page_size.setValue(self.page_size)
 
-    
+
     def apply_filters(self, update_page_from_state=False):
         """根据 label_filter / source_filter / shuffle 计算 filtered_indices"""
         if self.df is None:
@@ -360,7 +359,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             random.shuffle(idxs)
         else:
-            
+
             df_sub = self.df.loc[idxs].copy()
             if "dish" in df_sub.columns and "center_min" in df_sub.columns:
                 df_sub = df_sub.sort_values(
@@ -393,9 +392,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 f"当前显示 {end-start} 条 / 过滤后 {len(self.filtered_indices)} 条 / 总 {len(self.df)} 条"
             )
 
-    
+
     def clear_grid(self):
-        
+
         while self.grid_layout.count():
             item = self.grid_layout.takeAt(0)
             w = item.widget()
@@ -413,7 +412,7 @@ class MainWindow(QtWidgets.QMainWindow):
         end = min(start + self.page_size, len(self.filtered_indices))
         cur_indices = self.filtered_indices[start:end]
 
-        
+
         cols = 3
 
         for i, idx in enumerate(cur_indices):
@@ -428,7 +427,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.update_page_label()
 
-        
+
         self.state["page"] = self.cur_page
         self.state["label_filter"] = self.combo_label_filter.currentText()
         self.state["source_filter"] = self.combo_src_filter.currentText()
@@ -436,7 +435,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.state["shuffle"] = self.chk_shuffle.isChecked()
         save_state(self.state)
 
-    
+
     def on_label_changed(self, row_idx, new_label):
         """单个胚胎标签变更"""
         if self.df is None:
@@ -482,7 +481,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def save_labels(self):
         if self.df is None:
             return
-        
+
         try:
             backup = save_label_csv(self.df, self.label_csv, self.csv_version)
         except (OSError, ValueError) as error:
@@ -513,7 +512,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 event.ignore()
                 return
         event.accept()
-
 
 
 def main():

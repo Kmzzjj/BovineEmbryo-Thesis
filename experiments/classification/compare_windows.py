@@ -51,8 +51,8 @@ def read_all_runs(root: Path) -> pd.DataFrame:
     else:
         existing = pd.DataFrame()
 
-    
-    # those rows from immutable predictions and the selected best checkpoint.
+
+    # Rebuild missing summaries from saved predictions and checkpoints.
     rebuilt = []
     for pred_path in sorted(root.glob("ablation_agent_window_gui_only_r50_cbam_tfm/runs/*/eval/test_predictions.csv")):
         match = re.search(r"_T(\d+)__seed(\d+)$", pred_path.parents[1].name)

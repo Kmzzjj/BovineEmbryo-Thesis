@@ -1,42 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-One-click comparison experiment:
-ResNet-50 + Temporal Transformer
-
-Purpose
--------
-Run a clean before-vs-after label-structure comparison on the new machine.
-The model backbone and training setup stay fixed. Only the label setting changes.
-
-Comparison settings
--------------------
-1) pre_adjustment
-   - use the source label as-is
-2) post_adjustment
-   - merge Early Morula -> Morula
-   - optionally merge 5-8 cell -> 5-16 cell when that class exists
-
-Default paths are adapted to the new machine.
-This script is intentionally simpler than the CBAM ablation script:
-- no CBAM
-- no pseudo-labels
-- no multi-model sweep
-- same split for both settings
-- same ResNet-50 + Temporal Transformer architecture for both settings
-
-Example
--------
-BOVINE_ROOT=/path/to/project \
-BOVINE_BIG_ROOT=/path/to/project/Bovine \
-BATCH_SIZE=8 NUM_WORKERS=6 USE_CKPT=0 \
-python run_label_restructure_compare.py
-
-Optional
---------
-python run_label_restructure_compare.py --label_col label
-python run_label_restructure_compare.py --settings pre_adjustment,post_adjustment
-python run_label_restructure_compare.py --seeds 0,1,2
-"""
+"""Train the paired label-review comparison with ResNet-50 and a temporal Transformer."""
 
 from __future__ import annotations
 
@@ -73,9 +36,6 @@ except Exception:
 from PIL import Image
 import cv2
 from collections import Counter
-
-
-
 
 
 def resolve_under_root(root: Path, p: str | Path) -> Path:
@@ -155,10 +115,6 @@ def printl_factory(run_log_path: Path):
         except Exception:
             pass
     return _printl
-
-
-
-
 
 
 def build_argparser():
@@ -242,9 +198,6 @@ print("Seeds   :", SEEDS)
 print("Mode    :", ARGS.experiment_mode)
 
 
-
-
-
 def sanity_check_bigroot(big_root: Path):
     if not big_root.exists():
         die(f"BIG_ROOT not found: {big_root}")
@@ -297,9 +250,6 @@ if miss:
     die(f"sequence_rows.csv missing columns: {sorted(list(miss))}")
 
 sanity_check_hit_rate(df_rows_all, BIG_ROOT, n=250, min_hit=0.85)
-
-
-
 
 
 def normalise_text(s: str) -> str:
@@ -413,9 +363,6 @@ if CONFIRMATORY_MODE:
     df_rows_all["label_gui_6"] = df_rows_all["label_gui_join"].map(canonical_six_label)
 
 
-
-
-
 def build_manifest(df_rows: pd.DataFrame, label_series: pd.Series) -> pd.DataFrame:
     mani = (
         df_rows.assign(_label=label_series.values)
@@ -485,9 +432,6 @@ if CONFIRMATORY_MODE:
     audit_cols = ["seq_id", "gid", "label_pre_gui", "label_gui"]
     split_df = split_df.merge(mani_for_split[audit_cols], on="seq_id", how="left", validate="one_to_one")
 split_df.to_csv(OUT_DIR / "fixed_split_seq_id.csv", index=False, encoding="utf-8-sig")
-
-
-
 
 
 IM_SIZE = int(ARGS.image_size)
@@ -588,9 +532,6 @@ def pad_collate(batch):
     return X, y, {"seq_id": [m["seq_id"] for m in metas], "mask": mask}
 
 
-
-
-
 D_MODEL, N_HEAD, N_LAYERS, DROP = 256, 8, 2, 0.20
 
 
@@ -677,11 +618,6 @@ class CNNTransR50(nn.Module):
         return self.temporal(feat, valid_mask)
 
 
-
-
-
-
-
 def class_balanced_weights(num_classes, labels, beta=0.999):
     counts = np.bincount(np.array(labels, dtype=np.int64), minlength=num_classes).astype(np.float32)
     eff_num = 1.0 - np.power(beta, counts)
@@ -739,10 +675,6 @@ def export_predictions(model, dl, classes, out_csv: Path):
     out_csv.parent.mkdir(parents=True, exist_ok=True)
     dfp.to_csv(out_csv, index=False, encoding="utf-8-sig")
     return float(acc), float(f1), cm, report
-
-
-
-
 
 
 def seed_worker(worker_id: int):
@@ -970,10 +902,6 @@ def run_one(
     }
     summary_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
-
-
-
-
 
 
 def make_setting_df(setting_name: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:

@@ -7,7 +7,7 @@ import pandas as pd
 import torch, cv2
 from PIL import Image
 from torch.utils.data import Dataset
-from direction_support import history_pick, select_centered, patch_key
+from sampling import history_pick, select_centered, patch_key
 
 HERE=Path(__file__).resolve().parent
 BASE=Path('/path/to/project/exp/agent_initiated_supplementary_20260829/window_gui_only_repro_20260829_frozen/ablation_agent_window_gui_only_r50_cbam_tfm')

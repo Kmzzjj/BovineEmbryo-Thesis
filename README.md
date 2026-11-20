@@ -40,6 +40,6 @@ Run the local checks with `python -m pip install -e '.[test]'` followed by `pyth
 
 Research images, videos, annotations, sample identifiers, split manifests, predictions and trained weights are excluded. The experiment scripts require authorised inputs and, in some cases, the original run artefacts. See the [experiment index](experiments/README.md) for details.
 
-This remains a selected code release, rather than a complete end-to-end reproduction package. The historical environment and private run artefacts are not supplied. Reorganising the code does not establish new scientific results.
+This remains a selected code release, rather than a complete end-to-end reproduction package. The historical environment and private run artefacts are not supplied.
 
-The submitted thesis cites the fixed [thesis release](https://github.com/Kmzzjj/BovineEmbryo-Thesis/tree/thesis). The [release manifest](provenance/thesis-source-manifest.json) records the original source and public file hashes at that tag. No additional licence grant is asserted. Third-party libraries retain their own licences.
+The submitted thesis cites the fixed [thesis release](https://github.com/Kmzzjj/BovineEmbryo-Thesis/tree/thesis). The [release manifest](provenance/manifest.json) records the original source and public file hashes at that tag. No additional licence grant is asserted. Third-party libraries retain their own licences.

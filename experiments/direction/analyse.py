@@ -22,7 +22,7 @@ for b in audit['baseline_runs']:
  assert (new.parent/'DONE.txt').exists()
  config=json.loads((new.parent.parent/'meta/run_config.json').read_text())
  assert config['T']==3 and config['run_seed']==seed and config['direction_mode']=='centered'
- assert config['script_sha256']==manifest['files']['run_direction_t3.py']
+ assert config['script_sha256']==manifest['files']['train.py']
  a=pd.read_csv(old);c=pd.read_csv(new)
  assert len(a)==len(c)==331 and a.seq_id.is_unique and c.seq_id.is_unique
  assert a.seq_id.tolist()==c.seq_id.tolist() and a.true.tolist()==c.true.tolist()

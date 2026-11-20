@@ -1,9 +1,7 @@
-"""Supplementary cached-feature replay, not a new v53 implementation.
+"""Replay the frozen repair loop on cached embeddings.
 
-Execute hash-locked, unchanged snippets from the original main loop. Require
-row-wise baseline reproduction before any parameter variants. Outputs never
-overwrite historical runs. No biological accuracy is inferred here.
-"""
+The source hash and baseline rows must match before testing variants. These
+structural checks do not estimate biological repair accuracy."""
 import argparse
 import ast
 import hashlib

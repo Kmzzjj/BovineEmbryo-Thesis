@@ -1,22 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-train_reid_native_stable_v3_full.py
+"""Prepare embryo crops and stable segments, then train identity embeddings.
 
-Native YOLO+Tracker tracks.csv -> stable segments -> ReID training (FULL PIPELINE).
-
-This is a SUPERSET of your v2:
--  make-patches: crop patches from BIG_ROOT using native tracks.csv bboxes
--  build-stable: detect breaks/drifts to split stable short segments
--  build-train: join patch_meta with stable -> reid_train_stable.csv (supports --patch-root rewrite)
--  bench: fast benchmark (coarse+fine) to pick best (P,K,nw,pf)
--  train: CE + batch-hard triplet; validate by Recall@1; early-stop; ckpt best/last; resume
-
-Hard lessons embedded:
-- robust time parsing: prefer time_min/tmin/minute; fallback to filename tmin
-- robust well identity: dish/p/fp/tmin parsed from filename
-- dedup within (dish,p,fp,track_id,tmin) keep highest conf
-- gap_min default=22 (10-min sampling, your dt stats)
-"""
+Training uses cross-entropy and batch-hard triplet loss; validation uses Recall@1."""
 
 from __future__ import annotations
 import os, re, json, argparse, random, math, time, glob
@@ -86,7 +71,6 @@ def _set_worker_env(worker_id: int):
     s = (torch.initial_seed() + worker_id) % 2**32
     random.seed(s)
     np.random.seed(s)
-
 
 
 def clamp_box(x1, y1, x2, y2, W, H) -> Optional[Tuple[int,int,int,int]]:
@@ -308,19 +292,19 @@ def load_native_tracks_one(path: Path, min_conf: float) -> pd.DataFrame:
     sub = df[cols].copy()
     sub.columns = ["track_id","x1","y1","x2","y2","filename"]
 
-    # time
+
     if tcol is not None:
         sub["tmin_raw"] = pd.to_numeric(df[tcol], errors="coerce")
     else:
         sub["tmin_raw"] = np.nan
 
-    # conf
+
     if conf_col is not None:
         sub["conf"] = pd.to_numeric(df[conf_col], errors="coerce").fillna(0.0).astype(float)
     else:
         sub["conf"] = 1.0
 
-    # parse dish/p/fp/tmin from filename (ground truth)
+    # Read acquisition metadata from the filename.
     parsed = sub["filename"].astype(str).map(parse_from_filename)
     ok = parsed.map(lambda x: x[0] is not None)
     sub = sub[ok].copy()
@@ -336,7 +320,7 @@ def load_native_tracks_one(path: Path, min_conf: float) -> pd.DataFrame:
     sub.loc[sub["tmin"].isna(), "tmin"] = sub.loc[sub["tmin"].isna(), "t_from_fn"]
     sub["tmin"] = pd.to_numeric(sub["tmin"], errors="coerce")
 
-    # types
+
     for c in ["track_id","x1","y1","x2","y2"]:
         sub[c] = pd.to_numeric(sub[c], errors="coerce")
     sub = sub.dropna(subset=["track_id","tmin","x1","y1","x2","y2"])
@@ -350,7 +334,7 @@ def load_native_tracks_one(path: Path, min_conf: float) -> pd.DataFrame:
     sub = sub.sort_values(["dish","p","fp","track_id","tmin","conf"], ascending=[True,True,True,True,True,False])
     sub = sub.drop_duplicates(["dish","p","fp","track_id","tmin"], keep="first").reset_index(drop=True)
 
-    # derived
+
     sub["cx"] = (sub["x1"] + sub["x2"]) * 0.5
     sub["cy"] = (sub["y1"] + sub["y2"]) * 0.5
     sub["area"] = np.maximum(1.0, (sub["x2"] - sub["x1"]) * (sub["y2"] - sub["y1"]))
@@ -409,7 +393,7 @@ def rewrite_patch_paths(df: pd.DataFrame, patch_root: Path) -> pd.DataFrame:
         df["patch_path"] = df["patch_path"].astype(str).map(rewrite_one)
     return df
 
-# cmd: make-patches
+
 def cmd_make_patches(args):
     tracks_root = Path(args.tracks_root).resolve()
     big_root = Path(args.big_root).resolve()
@@ -474,7 +458,7 @@ def cmd_make_patches(args):
     info(f"[make-patches] saved meta rows={len(pm)} -> {out_patch_meta}")
     info(f"[make-patches] seen={seen} saved={saved} skip_done={skip_done} missing_big={missing_big} bad_box={bad_box} fail={fail}")
 
-# cmd: build-stable
+
 def cmd_build_stable(args):
     tracks_root = Path(args.tracks_root).resolve()
     out_stable = Path(args.out_stable).resolve()
@@ -531,7 +515,7 @@ def cmd_build_stable(args):
     info(f"[stable] saved rows={len(stable)} -> {out_stable}")
     info(f"[stable] unique id_key={stable['id_key'].nunique()} unique wells={stable[['dish','p','fp']].drop_duplicates().shape[0]}")
 
-# cmd: build-train
+
 def cmd_build_train(args):
     patch_meta = Path(args.patch_meta).resolve()
     stable_csv = Path(args.stable_csv).resolve()
@@ -561,7 +545,7 @@ def cmd_build_train(args):
     if miss:
         die(f"stable_csv missing columns: {sorted(list(miss))}")
 
-    # types
+
     for c in ["p","fp","track_id","tmin"]:
         pm[c] = pd.to_numeric(pm[c], errors="coerce").astype(int)
         stable[c] = pd.to_numeric(stable[c], errors="coerce").astype(int)
@@ -585,7 +569,7 @@ def cmd_build_train(args):
     df.to_csv(out_train, index=False)
     info(f"[traincsv] saved rows={len(df)} ids={df['id_key'].nunique()} -> {out_train}")
 
-# cmd: bench (fast resume)
+
 @torch.no_grad()
 def cmd_bench(args):
     train_csv = Path(args.train_csv).resolve()
@@ -621,7 +605,7 @@ def cmd_bench(args):
 
     ds = PatchDataset(df, id2idx=id2idx, train=True, skip_missing=False)
 
-    # quick run config
+
     P_list = [int(x) for x in args.p_list.split(",") if x.strip()]
     K = int(args.k)
     NW_list = [int(x) for x in args.nw_list.split(",") if x.strip()]
@@ -652,7 +636,7 @@ def cmd_bench(args):
         scaler = torch.amp.GradScaler("cuda", enabled=AMP_ON)
 
         it = iter(dl)
-        # warmup
+
         for _ in range(int(args.warmup_steps)):
             x,y = next(it)
             x = x.to(device, non_blocking=True)
@@ -667,7 +651,7 @@ def cmd_bench(args):
             scaler.step(opt); scaler.update()
         torch.cuda.synchronize()
 
-        # timed
+
         t0=time.time()
         n_samples=0
         it = iter(dl)
@@ -722,7 +706,7 @@ def cmd_bench(args):
         outp.write_text(json.dumps({"best":best,"results":results}, indent=2), encoding="utf-8")
         info(f"[bench] saved -> {outp}")
 
-# cmd: train (with resume)
+
 def cmd_train(args):
     seed_all(int(args.seed))
     out_dir = Path(args.out_dir).resolve()
@@ -902,7 +886,7 @@ def cmd_train(args):
 
         info(f"[epoch {epoch}] loss={tr_loss:.4f} ce={tr_ce:.4f} tri={tr_tri:.4f} | val_r1={val_r1:.4f} | lr={lr:.2e} | {sec:.1f}s")
 
-        # always save last (so SSH drop is safe)
+        # Save the latest epoch for resume.
         ckpt = {
             "epoch": epoch,
             "model_state": (model.module.state_dict() if isinstance(model, nn.DataParallel) else model.state_dict()),
@@ -938,7 +922,7 @@ def cmd_train(args):
 
     info("[done] ckpt/best.pth + ckpt/last.pth + logs/metrics.csv")
 
-# CLI
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -997,9 +981,9 @@ def main():
 
     sp.add_argument("--epochs", type=int, default=60)
     sp.add_argument("--iters-per-epoch", type=int, default=150)
-    sp.add_argument("--pk-p", type=int, default=64)   # your bench best
-    sp.add_argument("--pk-k", type=int, default=6)    # your bench best
-    sp.add_argument("--num-workers", type=int, default=8)  # your bench best (8 or 16)
+    sp.add_argument("--pk-p", type=int, default=64)
+    sp.add_argument("--pk-k", type=int, default=6)
+    sp.add_argument("--num-workers", type=int, default=8)
     sp.add_argument("--prefetch-factor", type=int, default=2)
     sp.add_argument("--amp", action="store_true")
     sp.add_argument("--channels-last", action="store_true")

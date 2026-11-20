@@ -4,9 +4,8 @@ import hashlib
 import numpy as np
 
 def select_centered(sub, history_picked, center_min):
-    
-    
-    
+
+
     if not history_picked:
         raise ValueError('No historical observations')
     times = sub.tmin.astype(int)

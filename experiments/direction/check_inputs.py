@@ -5,7 +5,7 @@ import pandas as pd
 import torch, cv2
 from PIL import Image
 from torch.utils.data import Dataset
-from direction_support import select_centered,cached_patch
+from sampling import select_centered,cached_patch
 
 root=Path('/path/to/project/exp/direction_t3_20260907')
 base=Path('/path/to/project/exp/agent_initiated_supplementary_20260829/window_gui_only_repro_20260829_frozen/ablation_agent_window_gui_only_r50_cbam_tfm/meta')
@@ -19,7 +19,7 @@ def load(path):
  exec(compile(ast.Module(body=nodes,type_ignores=[]),str(path),'exec'),env)
  return env['SeqDataset']
 old=load('/path/to/project/notebook_script/run_paired_window_t3_t9_repro_20260829.py')
-new=load(Path(__file__).with_name('run_direction_t3.py'))
+new=load(Path(__file__).with_name('train.py'))
 checks=0
 for train in [False,True]:
  a=old(rows,mani,classes,3,train);b=new(rows,mani,classes,3,train)
