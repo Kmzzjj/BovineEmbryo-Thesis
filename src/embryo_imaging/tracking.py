@@ -9,7 +9,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import cv2
-import numpy as np
 
 
 EMBRYO_CLASS = 0
@@ -87,11 +86,15 @@ def track_rows(boxes, local_ids):
     confidences = boxes.conf.cpu().numpy()
     coords = boxes.xyxy.cpu().numpy()
     ids = getattr(boxes, "id", None)
-    ids = ids.int().cpu().numpy() if ids is not None else np.full(len(classes), -1, dtype=int)
+    if ids is None:
+        return []
+    ids = ids.int().cpu().numpy()
 
     picked = []
     for global_id, cls, confidence, (x1, y1, x2, y2) in zip(ids, classes, confidences, coords):
         if cls != EMBRYO_CLASS or (x2 - x1) * (y2 - y1) < MIN_BOX_AREA:
+            continue
+        if global_id < 0:
             continue
         local_id = local_ids.setdefault(global_id, len(local_ids))
         picked.append((local_id, int(cls), float(confidence), float(x1), float(y1), float(x2), float(y2)))
@@ -124,6 +127,9 @@ def track_sequence(model, frames, sequence_dir: Path, device, *, save_video: boo
         local_ids = {}
         frame_number = 0
         try:
+            # Keep temporal state within a well, never between independent sequences.
+            for tracker in getattr(getattr(model, "predictor", None), "trackers", ()):
+                tracker.reset()
             results = model.track(
                 source=[str(frame) for frame in sequence],
                 tracker="botsort.yaml",

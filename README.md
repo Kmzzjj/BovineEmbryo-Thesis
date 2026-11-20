@@ -1,16 +1,16 @@
 # Bovine embryo time-lapse imaging
 
-Research code for *From Stage Classification to Embryo-Level Continuity in Bovine Time-Lapse Imaging* by Zeyu Liu. The workflow detects embryos in well images, tracks them over time, and uses appearance embeddings to reconnect interrupted tracks. A separate viewer supports manual review of developmental stage labels.
+Research code for *From Stage Classification to Embryo-Level Continuity in Bovine Time-Lapse Imaging* by Zeyu Liu. The workflow detects embryos in well images, tracks them over time, and uses appearance embeddings to reconnect interrupted tracks. A separate viewer supports manual review of developmental stage labels from static centre crops.
 
 ## Install
 
-Create a Python 3.9 or later environment and install the components you need from the repository root.
+Python 3.11 is recommended for the full dependency stack. Create a separate environment and install the components you need from the repository root.
 
 ~~~sh
 python -m pip install -e '.[tracking,review,identity]'
 ~~~
 
-The tracking extra covers the YOLO detector and tracker. The review extra adds the PyQt viewer. The identity extra adds the dependencies for ReID and track repair.
+The tracking extra covers the YOLO detector and tracker. The review extra adds the PyQt viewer. The identity extra adds the dependencies for ReID and track repair. ReID training and its batch benchmark require an NVIDIA CUDA GPU; crop preparation and repair can run on the CPU.
 
 ## Start here
 
@@ -39,5 +39,7 @@ Run the local checks with `python -m pip install -e '.[test]'` followed by `pyth
 ## Research data and thesis release
 
 Research images, videos, annotations, sample identifiers, split manifests, predictions and trained weights are excluded. The experiment scripts require authorised inputs and, in some cases, the original run artefacts. See the [experiment index](experiments/README.md) for details.
+
+This remains a selected code release, rather than a complete end-to-end reproduction package. The historical environment and private run artefacts are not supplied. Reorganising the code does not establish new scientific results.
 
 The submitted thesis cites the fixed [thesis release](https://github.com/Kmzzjj/BovineEmbryo-Thesis/tree/thesis). The [release manifest](provenance/thesis-source-manifest.json) records the original source and public file hashes at that tag. No additional licence grant is asserted. Third-party libraries retain their own licences.

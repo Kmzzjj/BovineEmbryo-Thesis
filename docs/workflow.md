@@ -4,7 +4,7 @@ Use an environment with the extras listed in the [README](../README.md). Run com
 
 ## Detection and tracking
 
-Copy [the detector configuration](../configs/detector.example.yaml), set its dataset path and provide matching YOLO image and `label` folders. The example and the tracker both use class 0 for embryos.
+Copy [the detector configuration](../configs/detector.example.yaml), set its dataset path and provide matching YOLO `images` and `labels` folders. The example and the tracker both use class 0 for embryos.
 
 ~~~sh
 embryo-train-detector --data /data/detector.yaml --model /models/yolov8n.pt \
@@ -13,7 +13,7 @@ embryo-track --frames /data/time-lapse --weights runs/detector/weights/best.pt \
   --output runs/tracks
 ~~~
 
-The tracker expects one folder per run and names such as `run01_P4_FP3_5807.jpg`, where `P4` is the well position, `FP3` is the focal plane and 5807 is the capture time in minutes. It writes `tracks.csv` and `tracked.mp4` under each run and well/plane. Use `--focal-plane` to select a different focal plane, `--no-video` to write only CSV, or `--overwrite` to rerun a completed sequence. Use separate output directories for simultaneous runs.
+The tracker expects one folder per run and names such as `run01_P4_FP3_5807.jpg`, where `P4` is the well position, `FP3` is the focal plane and 5807 is the capture time in minutes. It writes `tracks.csv` and `tracked.mp4` under each run and well/plane. Use `--focal-plane` to select a different focal plane, `--no-video` to write only CSV, or `--overwrite` to rerun a completed sequence. Each well starts with fresh tracker state. Detections without an assigned tracking ID are omitted from the track CSV. These safeguards are in the maintained package; use the fixed thesis tag for the original implementation. Use separate output directories for simultaneous runs.
 
 ## Review developmental labels
 
@@ -21,7 +21,7 @@ The tracker expects one folder per run and names such as `run01_P4_FP3_5807.jpg`
 embryo-review --labels /data/labels.csv --image-root /data/centre-crops
 ~~~
 
-The CSV must contain `seq_id` and `label`. The optional `source` column is used for filtering. The viewer first looks at `center_img_path`, then for a crop named `<seq_id>_center_320.jpg` under the image root, then at `filename`. Relative image paths can be resolved beside the CSV. Saving keeps the previous CSV as a dated backup.
+The CSV must contain `seq_id` and `label`. The optional `source` column is used for filtering. The viewer first looks at `center_img_path`, then for a crop named `<seq_id>_center_320.jpg` under the image root, then at `filename`. Relative image paths can be resolved beside the CSV. Saving keeps the previous CSV as a dated backup and refuses to overwrite a CSV changed by another process. This viewer displays static centre crops; it does not include the separate long-context animated review interface.
 
 ## Train identity embeddings
 
@@ -36,7 +36,7 @@ embryo-reid build-train --patch-meta runs/patch_meta.csv --stable-csv runs/stabl
 embryo-reid train --train-csv runs/reid_train.csv --out-dir runs/reid
 ~~~
 
-The training script selects an available device. Consult `embryo-reid train --help` for batch, sampling and checkpoint options.
+The `train` and `bench` subcommands require an NVIDIA CUDA GPU and stop if CUDA is unavailable. The crop and CSV preparation commands do not require CUDA. Consult `embryo-reid train --help` for batch, sampling and checkpoint options.
 
 ## Repair interrupted tracks
 
