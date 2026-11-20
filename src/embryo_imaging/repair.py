@@ -30,6 +30,8 @@ except Exception:
     _HAS_TV_READ = False
 
 from PIL import Image, ImageFile
+
+from .paths import big_image_path, parse_from_filename
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
@@ -91,23 +93,6 @@ def normalize_dish_id(s: str) -> str:
     s = str(s).strip()
     s = re.sub(r"^MTL-\d+-", "", s)
     return s
-
-
-_FNAME_RE = re.compile(
-    r"^(?P<dish>[^_]+)_P(?P<p>\d+)_FP(?P<fp>\d+)_(?P<tmin>-?\d+)\.jpg$",
-    re.IGNORECASE
-)
-
-
-def parse_from_filename(fn: str) -> Tuple[Optional[str], Optional[int], Optional[int], Optional[int]]:
-    m = _FNAME_RE.match(Path(str(fn)).name)
-    if not m:
-        return None, None, None, None
-    return str(m.group("dish")), int(m.group("p")), int(m.group("fp")), int(m.group("tmin"))
-
-
-def big_image_path(big_root: Path, dish: str, p: int, fp: int, tmin: int) -> Path:
-    return Path(big_root) / f"MTL-0034-{dish}" / f"{dish}_P{int(p)}_FP{int(fp)}_{int(tmin)}.jpg"
 
 
 def clamp_box(x1, y1, x2, y2, W, H) -> Optional[Tuple[int, int, int, int]]:
@@ -367,9 +352,9 @@ def _resolve_patch_meta_path(patch_meta: Path, patch_root: Path) -> Optional[Pat
         patch_root / "patch_meta_bovine.csv",
         patch_root / "patch_meta.csv",
         patch_root / "patch_meta_native.csv",
-        Path("/path/to/project/exp/reid_patches/patch_meta_bovine.csv"),
-        Path("/path/to/project/exp/reid_patches/patch_meta.csv"),
-        Path("/path/to/project/exp/reid_patches_native/patch_meta_native.csv"),
+        Path("exp/reid_patches/patch_meta_bovine.csv"),
+        Path("exp/reid_patches/patch_meta.csv"),
+        Path("exp/reid_patches_native/patch_meta_native.csv"),
     ]
     for c in candidates:
         if c.is_file():
@@ -615,7 +600,7 @@ def infer_embeddings(
         num_workers=int(num_workers),
         pin_memory=device.startswith("cuda"),
         persistent_workers=(int(num_workers) > 0),
-        prefetch_factor=4 if int(num_workers) > 0 else 2,
+        prefetch_factor=4 if int(num_workers) > 0 else None,
         collate_fn=_collate_drop_bad,
         drop_last=False,
         worker_init_fn=_set_worker_env if int(num_workers) > 0 else None,
@@ -1440,15 +1425,15 @@ def make_run_dir(out_root: Path, note: str = "") -> Path:
 
 def main():
     import argparse
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(description="Reconnect interrupted embryo tracks using ReID embeddings.")
 
-    ap.add_argument("--tracks-root", default=_env_str("REPAIR_TRACKS_ROOT", "/path/to/project/EmbryoTracks_BoT"))
-    ap.add_argument("--big-root", default=_env_str("REPAIR_BIG_ROOT", "/path/to/project/Bovine"))
-    ap.add_argument("--patch-root", default=_env_str("REPAIR_PATCH_ROOT", "/path/to/project/exp/reid_patches"))
-    ap.add_argument("--patch-meta", default=_env_str("REPAIR_PATCH_META_CSV", "/path/to/project/exp/reid_patches/patch_meta_bovine.csv"))
-    ap.add_argument("--reid-ckpt", default=_env_str("REPAIR_REID_CKPT", "/path/to/project/exp/reid_r50_native_stable_runC/ckpt/best.pth"))
+    ap.add_argument("--tracks-root", default=_env_str("REPAIR_TRACKS_ROOT", "EmbryoTracks_BoT"))
+    ap.add_argument("--big-root", default=_env_str("REPAIR_BIG_ROOT", "Bovine"))
+    ap.add_argument("--patch-root", default=_env_str("REPAIR_PATCH_ROOT", "exp/reid_patches"))
+    ap.add_argument("--patch-meta", default=_env_str("REPAIR_PATCH_META_CSV", "exp/reid_patches/patch_meta_bovine.csv"))
+    ap.add_argument("--reid-ckpt", default=_env_str("REPAIR_REID_CKPT", "exp/reid_r50_native_stable_runC/ckpt/best.pth"))
 
-    ap.add_argument("--out-root", default=_env_str("REPAIR_OUT_ROOT", "/path/to/project/exp/track_repair_v53_guarded_orphanfix"))
+    ap.add_argument("--out-root", default=_env_str("REPAIR_OUT_ROOT", "exp/track_repair_v53_guarded_orphanfix"))
     ap.add_argument("--note", default="v53_guarded_orphanfix_release")
 
     ap.add_argument("--max-tracks-files", type=int, default=0, help="0=all")
@@ -1471,7 +1456,7 @@ def main():
     ap.add_argument("--emb-workers", type=int, default=12)
     ap.add_argument("--skip-bad-images", action="store_true", default=True)
 
-    ap.add_argument("--tmp-patch-root", default=_env_str("REPAIR_TMP_PATCH_ROOT", "/path/to/project/exp/track_repair_v53_tmp_patches"))
+    ap.add_argument("--tmp-patch-root", default=_env_str("REPAIR_TMP_PATCH_ROOT", "exp/track_repair_v53_tmp_patches"))
 
     ap.add_argument("--split-by-appearance", action="store_true", default=True)
     ap.add_argument("--split-cos-th", type=float, default=0.35)
