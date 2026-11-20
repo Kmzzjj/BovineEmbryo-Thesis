@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import pandas as pd
 import numpy as np
-from diagnostic_frozen_kernel_20260908 import kernel,sha
+from sensitivity import kernel,sha
 
 root=Path('/path/to/project/exp/repair_supplement_20260907_v53_cached_v2')
 baseline=Path('/path/to/project/exp/track_repair_v53_guarded_orphanfix/run_20260324_094127_fullrun_release')

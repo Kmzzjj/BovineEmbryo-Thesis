@@ -2,7 +2,7 @@
 import json,subprocess,time,hashlib
 from pathlib import Path
 root=Path('/path/to/project/exp/direction_t3_20260907')
-script=Path(__file__).with_name('analyse_direction.py')
+script=Path(__file__).with_name('analyse.py')
 job={'analysis_script_sha256':hashlib.sha256(script.read_bytes()).hexdigest(),'status':'waiting_for_training','started_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())}
 (root/'analysis_job.json').write_text(json.dumps(job,indent=2))
 deadline=time.monotonic()+24*3600

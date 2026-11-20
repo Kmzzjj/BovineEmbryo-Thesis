@@ -1,6 +1,14 @@
 import unittest
 import pandas as pd
-from direction_support import history_pick, select_centered
+import importlib.util
+from pathlib import Path
+
+source = Path(__file__).resolve().parents[1] / "experiments" / "direction" / "sampling.py"
+spec = importlib.util.spec_from_file_location("direction_sampling", source)
+sampling = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(sampling)
+history_pick = sampling.history_pick
+select_centered = sampling.select_centered
 
 class SelectionTests(unittest.TestCase):
     def test_regular_matched_span(self):

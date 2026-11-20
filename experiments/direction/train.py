@@ -1,49 +1,13 @@
 # -*- coding: utf-8 -*-
-"""
-Ablation (hist_center): ResNet50 + CBAM + Temporal Transformer
+"""Train the T=3 history-versus-centred comparison.
 
-This clean replacement uses only non-uncertain GUI-reviewed sequences
-for training, validation, and testing. Pseudo-labelled sequences are not
-used in this experiment, so the temporal-window comparison is not
-confounded by pseudo-label quality or pseudo-labelled evaluation targets.
-
-Key fixes for this machine:
-- BIG_ROOT must point to the big-image tree (otherwise every sample becomes zeros and the model collapses)
-- Hard sanity checks before training (existence, hit-rate, readable-rate)
-- Run multiple random seeds per T to get stable estimates (mean/std) and enable basic statistical tests
-
-Changes in this version:
-1) Sharding / Parallel-friendly:
-   - Split all (T, seed) jobs into N shards: --num_jobs N --job_index i
-   - Each process runs only its shard -> easy to run multiple processes across GPUs/machines.
-
-2) Skip & Resume:
-   - If eval/test_predictions.csv exists or DONE marker exists -> skip that (T,seed).
-   - Optional resume from ckpt/last.pth: --resume 1 (env RESUME=1 also works)
-
-3) Better GPU utilization:
-   - Gradient accumulation: ACCUM_STEPS (env) or --accum_steps
-   - Auto AMP already enabled; TF32 enabled.
-
-Run examples:
-
-# (A) Single process (recommended for single GPU)
-BOVINE_BIG_ROOT=/path/to/project/Bovine BATCH_SIZE=8 NUM_WORKERS=6 USE_CKPT=0 python run_ablation.py
-
-# (B) True parallel (multi-GPU): launch 2 shards on 2 GPUs
-CUDA_VISIBLE_DEVICES=0 python run_ablation.py --num_jobs 2 --job_index 0
-CUDA_VISIBLE_DEVICES=1 python run_ablation.py --num_jobs 2 --job_index 1
-
-# (C) Two shards on ONE GPU (NOT recommended; only if you accept slower + risk OOM)
-CUDA_VISIBLE_DEVICES=0 python run_ablation.py --num_jobs 2 --job_index 0
-CUDA_VISIBLE_DEVICES=0 python run_ablation.py --num_jobs 2 --job_index 1
-
-# (D) Only run some T and seeds
-python run_ablation.py --only_T 21,15 --only_seeds 0,1
-
-"""
+Uses ResNet-50, CBAM and a temporal Transformer with reviewed labels and paired seeds."""
 
 import os, re, json, math, random, gc, warnings, time, sys, argparse, hashlib, shutil
+from sampling import select_centered, cached_patch
+DIRECTION_MODE = os.environ.get("DIRECTION_MODE", "centered")
+assert DIRECTION_MODE in {"centered", "history"}
+PATCH_CACHE = os.environ.get("DIRECTION_PATCH_CACHE", "")
 from pathlib import Path
 from typing import List, Tuple, Union, Optional
 
@@ -685,7 +649,7 @@ class SeqDataset(Dataset):
 
         hist = sub_all[sub_all["tmin"].astype(int) <= cmin].copy()
         if len(hist) == 0:
-            hist = sub_all.copy()
+            raise RuntimeError("No past/target frame; future fallback is forbidden")
 
         hist_idx = hist.index.tolist()
         tmins_hist = hist["tmin"].astype(int).to_numpy()
@@ -709,6 +673,9 @@ class SeqDataset(Dataset):
         else:
             picked = hist_idx
 
+        if DIRECTION_MODE == "centered":
+            assert self.T == 3, "Only the frozen T3 contrast is supported"
+            picked = select_centered(sub_all, picked, cmin)
         picked = sorted(picked, key=lambda i: int(sub_all.iloc[i]["tmin"]))
 
         frames = []
@@ -723,13 +690,16 @@ class SeqDataset(Dataset):
                 valid.append(False)
                 continue
 
-            im = safe_imread_bgr(str(bigp))
-            if im is None:
-                frames.append(torch.zeros(3, IM_SIZE, IM_SIZE))
-                valid.append(False)
-                continue
-
-            patch = self.crop_rgb(im, (int(r["x1"]), int(r["y1"]), int(r["x2"]), int(r["y2"])))
+            box = (int(r["x1"]), int(r["y1"]), int(r["x2"]), int(r["y2"]))
+            if PATCH_CACHE:
+                patch = cached_patch(PATCH_CACHE, bigp, box)
+            else:
+                im = safe_imread_bgr(str(bigp))
+                if im is None:
+                    frames.append(torch.zeros(3, IM_SIZE, IM_SIZE))
+                    valid.append(False)
+                    continue
+                patch = self.crop_rgb(im, box)
             black = is_black_patch(patch) if self.black_fix else False
 
             if self.train:
@@ -1049,9 +1019,12 @@ if not script_snapshot.exists():
     os.replace(snapshot_tmp, script_snapshot)
 
 cfg = {
-    "analysis_role": "agent_initiated_supplementary_gui_only_window_sweep_and_confirmation",
-    "not_supervisor_directed": True,
-    "design_note": "The full corrected sweep and the T=3 versus T=9 extension were selected after an agent-led thesis-gap audit; they were not requested by the supervisors.",
+    "direction_mode": DIRECTION_MODE,
+    "direction_support_sha256": sha256_file(Path(__file__).with_name("sampling.py")),
+    "patch_cache": PATCH_CACHE,
+    "analysis_role": "followup_T3_input_direction_comparison",
+    "supervisor_question": "Sergio 1771742555; user authorised this follow-up on 2026-09-07",
+    "design_note": "T3 and ten paired seeds are a new follow-up design chosen after previous results; not an original prespecified contrast. Compare centered with frozen historical results, not T3 against T9.",
     "label_pipeline_correction": "Only non-uncertain GUI rows and label_gui are used; pseudo-labelled rows are excluded from fitting and evaluation; Early Morula is merged into Morula; 5-8 cell is normalized to the thesis label 5-16 cell.",
     "script_path": str(SCRIPT_PATH),
     "script_sha256": SCRIPT_SHA256,
@@ -1141,7 +1114,7 @@ for (K, run_seed) in tqdm(shard_jobs, disable=(not SHOW_TQDM), desc="shard jobs"
     if device.type == "cuda":
         torch.cuda.reset_peak_memory_stats()
 
-    exp_name = f"{BASE_EXP}__hist_center_T{int(K):02d}__seed{int(run_seed):02d}"
+    exp_name = f"{BASE_EXP}__{DIRECTION_MODE}_T{int(K):02d}__seed{int(run_seed):02d}"
     EXP_DIR = SWEEP_ROOT / "runs" / f"exp_{exp_name}"
     (EXP_DIR / "ckpt").mkdir(parents=True, exist_ok=True)
     (EXP_DIR / "eval").mkdir(parents=True, exist_ok=True)
@@ -1151,6 +1124,8 @@ for (K, run_seed) in tqdm(shard_jobs, disable=(not SHOW_TQDM), desc="shard jobs"
     split_df.to_csv(EXP_DIR / "meta/fixed_split_seq_id.csv", index=False, encoding="utf-8-sig")
     df_rows.to_csv(EXP_DIR / "meta/sequence_rows_used.csv", index=False, encoding="utf-8-sig")
     run_config = {
+        "direction_mode": DIRECTION_MODE,
+        "patch_cache": PATCH_CACHE,
         "T": int(K),
         "run_seed": int(run_seed),
         "split_seed": int(SPLIT_SEED),
@@ -1200,7 +1175,7 @@ for (K, run_seed) in tqdm(shard_jobs, disable=(not SHOW_TQDM), desc="shard jobs"
         tags=NEPTUNE_TAGS_BASE + [f"T={K}", f"seed={run_seed}", f"split_seed={SPLIT_SEED}", f"shard={job_index}/{num_jobs}"],
         params={
             "target_frames": int(K),
-            "mode": "hist_center",
+            "mode": DIRECTION_MODE,
             "model": "r50+cbam+tfm",
             "best_metric": "val_macro_f1",
             "epochs": EPOCHS,
@@ -1266,7 +1241,7 @@ for (K, run_seed) in tqdm(shard_jobs, disable=(not SHOW_TQDM), desc="shard jobs"
                 p.requires_grad = flag
 
     # Keep the best checkpoint when resuming.
-    
+
     start_epoch = 1
     best_score, best_epoch, best_val_acc = -1.0, -1, -1.0
     no_improve = 0
@@ -1303,7 +1278,7 @@ for (K, run_seed) in tqdm(shard_jobs, disable=(not SHOW_TQDM), desc="shard jobs"
     set_backbone_requires_grad(False)
     printl(f"Train: freeze backbone until epoch {FREEZE_EPOCHS}", always=True)
 
-    
+
     for epoch in range(start_epoch, EPOCHS + 1):
         epoch_t0 = time.time()
 
@@ -1376,7 +1351,7 @@ for (K, run_seed) in tqdm(shard_jobs, disable=(not SHOW_TQDM), desc="shard jobs"
         tr_acc = accuracy_score(tr_labels_list, tr_preds) if tr_labels_list else 0.0
         tr_f1 = f1_score(tr_labels_list, tr_preds, average="macro", zero_division=0) if tr_labels_list else 0.0
 
-        # Val
+
         model.eval()
         va_losses, va_preds, va_labels_list = [], [], []
 
@@ -1437,7 +1412,7 @@ for (K, run_seed) in tqdm(shard_jobs, disable=(not SHOW_TQDM), desc="shard jobs"
             except Exception:
                 pass
 
-        # ckpt
+
         torch.save(
             {"model": model.state_dict(), "opt": optimizer.state_dict(), "sch": scheduler.state_dict(),
              "epoch": epoch + 1, "classes": classes,
@@ -1488,7 +1463,7 @@ for (K, run_seed) in tqdm(shard_jobs, disable=(not SHOW_TQDM), desc="shard jobs"
 
         cuda_purge()
 
-    # Eval best
+
     printl("Eval: load best ckpt and export predictions/confusion...", always=True)
     ck_best = torch.load(EXP_DIR / "ckpt/best.pth", map_location="cpu")
     model.load_state_dict(ck_best["model"], strict=False)
@@ -1515,7 +1490,7 @@ for (K, run_seed) in tqdm(shard_jobs, disable=(not SHOW_TQDM), desc="shard jobs"
     printl(f"\n[Train report]\n{rep_tr}\n", always=True)
     printl(f"\n[Test report]\n{rep_te}\n", always=True)
 
-    # mark done
+
     DONE_MARK.write_text(
         f"DONE\nT={K}\nseed={run_seed}\nscript_sha256={SCRIPT_SHA256}\n",
         encoding="utf-8",
@@ -1581,7 +1556,7 @@ runs_csv = SWEEP_ROOT / f"ablation_runs_shard_{job_index:02d}_of_{num_jobs:02d}.
 df_runs.to_csv(runs_csv, index=False, encoding="utf-8-sig")
 print("Saved:", runs_csv)
 
-# Full aggregation across all shards (best-effort: concat existing shard files)
+# Combine the available shard summaries.
 all_run_files = sorted(SWEEP_ROOT.glob("ablation_runs_shard_*_of_*.csv"))
 dfs = []
 for fp in all_run_files:
@@ -1657,7 +1632,7 @@ if dfs:
         print("Saved:", p_csv)
         print(df_p.to_string(index=False))
 
-    # plot (mean curves)
+
     plot_png = SWEEP_ROOT / "ablation_summary_plot_mean.png"
     try:
         fig = plt.figure(figsize=(7, 4))
