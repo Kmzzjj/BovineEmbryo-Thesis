@@ -13,7 +13,7 @@ embryo-track --frames /data/time-lapse --weights runs/detector/weights/best.pt \
   --output runs/tracks
 ~~~
 
-The tracker expects one folder per run and names such as `run01_P4_FP3_5807.jpg`, where `P4` is the well position, `FP3` is the focal plane and 5807 is the capture time in minutes. It writes `tracks.csv` and `tracked.mp4` under each run and well/plane. Use `--focal-plane` to select a different focal plane, `--no-video` to write only CSV, or `--overwrite` to rerun a completed sequence. Each well starts with fresh tracker state. Detections without an assigned tracking ID are omitted from the track CSV. These safeguards are in the maintained package; use the fixed thesis tag for the original implementation. Use separate output directories for simultaneous runs.
+The tracker expects one folder per run and names such as `run01_P4_FP3_5807.jpg`, where `P4` is the well position, `FP3` is the focal plane and 5807 is the capture time in minutes. It writes `tracks.csv` and `tracked.mp4` under each run and well/plane. Use `--focal-plane` to select a different focal plane, `--no-video` to write only CSV, or `--overwrite` to rerun a completed sequence. Each well starts with fresh tracker state. Detections without an assigned tracking ID are omitted from the track CSV. These safeguards are in the maintained package; use the `thesis-original` tag for the original implementation. Use separate output directories for simultaneous runs.
 
 ## Review developmental labels
 
@@ -49,4 +49,4 @@ embryo-repair --tracks-root runs/tracks --big-root /data/time-lapse \
 
 The repair command saves each run in a subdirectory of the output root. Its main outputs include `tracks_repaired.csv`, `segment_to_embryo_mapping.csv` and `per_well_stats.csv`.
 
-The command names above replace the script paths in the development checkout. Use the thesis tag if you need to run scripts at the original release paths or verify their published hashes.
+The command names above replace the script paths in the development checkout. Use the `thesis-original` tag if you need to run scripts at the original release paths or verify their published hashes.

@@ -42,4 +42,4 @@ Research images, videos, annotations, sample identifiers, split manifests, predi
 
 This remains a selected code release, rather than a complete end-to-end reproduction package. The historical environment and private run artefacts are not supplied.
 
-The submitted thesis cites the fixed [thesis release](https://github.com/Kmzzjj/BovineEmbryo-Thesis/tree/thesis). The [release manifest](provenance/manifest.json) records the original source and public file hashes at that tag. No additional licence grant is asserted. Third-party libraries retain their own licences.
+The [link in the thesis](https://github.com/Kmzzjj/BovineEmbryo-Thesis/tree/thesis) opens the maintained project files. The [original release](https://github.com/Kmzzjj/BovineEmbryo-Thesis/tree/thesis-original) is preserved separately at commit `3a5c4e4`. The [release manifest](provenance/manifest.json) records the original source and public file hashes. No additional licence grant is asserted. Third-party libraries retain their own licences.
